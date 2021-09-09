@@ -24,13 +24,13 @@ class ViewController: UIViewController {
     
     @IBAction func goToWebsite(sender: AnyObject) {
         if let jorgeURL = NSURL(string: "http://jorgetapia.net") {
-            UIApplication.sharedApplication().openURL(jorgeURL)
+            UIApplication.shared.openURL(jorgeURL as URL)
         }
     }
     
     @IBAction func goToRepoWebsite(sender: AnyObject) {
         if let repoURL = NSURL(string: "https://github.com/georgetapia/Swift-ISO8583") {
-            UIApplication.sharedApplication().openURL(repoURL)
+            UIApplication.shared.openURL(repoURL as URL)
         }
     }
 }

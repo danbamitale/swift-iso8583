@@ -24,70 +24,79 @@ class ISOMessage {
     // MARK: Initializers
     
     init() {
-        let pathToConfigFile = NSBundle.mainBundle().pathForResource("isoconfig", ofType: "plist")
+        let pathToConfigFile = Bundle.main.path(forResource: "isoconfig", ofType: "plist")
         dataElementsScheme = NSMutableDictionary(contentsOfFile: pathToConfigFile!)!
         dataElements = NSMutableDictionary(capacity: dataElementsScheme.count)
         
-        let pathToMTIConfigFile = NSBundle.mainBundle().pathForResource("isoMTI", ofType: "plist")
+        let pathToMTIConfigFile = Bundle.main.path(forResource: "isoMTI", ofType: "plist")
         validMTIs = NSArray(contentsOfFile: pathToMTIConfigFile!)!
         
         usesCustomConfiguration = false
         hasSecondaryBitmap = false
     }
     
-    convenience init?(isoMessage: String?) {
+    convenience init?(isoMessage: String, customConfigurationFileName: String?, customMTIFileName: String?) {
         self.init()
         
-        if isoMessage == nil {
-            println("The isoMessage parameter cannot be nil.")
-            return nil
-        }
+        _ = useCustomConfigurationFiles(customConfigurationFileName: customConfigurationFileName, customMTIFileName: customMTIFileName)
         
-        let isoHeaderPresent = isoMessage!.substringToIndex(advance(isoMessage!.startIndex, 3)) == "ISO"
+        let headerEndIndex = isoMessage.index(isoMessage.startIndex, offsetBy: 3)
+        let isoHeaderPresent = isoMessage[isoMessage.startIndex..<headerEndIndex] == "ISO"
         
         if !isoHeaderPresent {
             // Sets MTI
-            setMTI(isoMessage!.substringToIndex(advance(isoMessage!.startIndex, 4)))
+            let mtiEndIndex = isoMessage.index(isoMessage.startIndex, offsetBy: 4)
+            _ = setMTI(mti: String(isoMessage[isoMessage.startIndex..<mtiEndIndex]))
             
-            let startBitmapFirstBitIndex = advance(isoMessage!.startIndex, 4)
-            let endBitmapFirstBitIndex = advance(startBitmapFirstBitIndex, 1)
-            let bitmapFirstBit = isoMessage!.substringWithRange(Range(start: startBitmapFirstBitIndex, end: endBitmapFirstBitIndex))
+            print("MTI: \(mti!)")
+            
+            let startBitmapFirstBitIndex = isoMessage.index(isoMessage.startIndex, offsetBy: 4)
+            let endBitmapFirstBitIndex = isoMessage.index(after: startBitmapFirstBitIndex)
+            
+            let bitmapFirstBit = isoMessage[startBitmapFirstBitIndex..<endBitmapFirstBitIndex]
             
             // Sets bitmap
             hasSecondaryBitmap = bitmapFirstBit == "8" || bitmapFirstBit == "9" || bitmapFirstBit == "A" || bitmapFirstBit == "B" || bitmapFirstBit == "C" || bitmapFirstBit == "D" || bitmapFirstBit == "E" || bitmapFirstBit == "F"
             
-            let endBitmapIndex = hasSecondaryBitmap ? advance(startBitmapFirstBitIndex, 32) : advance(startBitmapFirstBitIndex, 16)
-            let bitmapRange = Range(start: startBitmapFirstBitIndex, end: endBitmapIndex)
-            let bitmapHexString = isoMessage!.substringWithRange(bitmapRange)
+            let endBitmapIndex = hasSecondaryBitmap ? isoMessage.index(startBitmapFirstBitIndex, offsetBy: 32) : isoMessage.index(startBitmapFirstBitIndex, offsetBy: 16)
+            let bitmapHexString = isoMessage[startBitmapFirstBitIndex..<endBitmapIndex]
             
-            bitmap = ISOBitmap(hexString: bitmapHexString)
+            print("Bitmap Hex String: \(bitmapHexString)")
+            bitmap = ISOBitmap(hexString: String(bitmapHexString))
+            
             
             // Extract and set values for data elements
-            let dataElementValues = isoMessage!.substringFromIndex(endBitmapIndex)
-            let theValues = extractDataElementValues(dataElementValues, dataElements: bitmap?.dataElementsInBitmap())
+            let dataElementValues = String(isoMessage[endBitmapIndex...])
+            print("dataElementValues: \(dataElementValues)")
+            let theValues = extractDataElementValues(isoMessageDataElementValues: dataElementValues, dataElements: bitmap?.dataElementsInBitmap())
             
-            println("MTI: \(mti!)")
-            println("Bitmap: \(bitmap!.rawValue!)")
-            println("Data: \(dataElementValues)")
+            print("MTI: \(mti!)")
+            print("Bitmap: \(bitmap!.rawValue!)")
+            print("Data: \(dataElementValues)")
+            print("Values: \(theValues ?? [])")
         } else {
             // TODO: with iso header
         }
     }
     
+    convenience init?(isoMessage: String) {
+        self.init(isoMessage: isoMessage, customConfigurationFileName: nil, customMTIFileName: nil)
+    }
+    
     // MARK: Methods
     
     func setMTI(mti: String) -> Bool {
-        if (isValidMTI(mti)) {
+        if (isValidMTI(mti: mti)) {
             self.mti = mti
             return true
         } else {
-            println("The MTI is not valid. Please set a valid MTI like the ones described in the isoMTI.plist or your custom MTI configuration file.")
+            print("The MTI is not valid. Please set a valid MTI like the ones described in the isoMTI.plist or your custom MTI configuration file.")
             return false
         }
     }
     
     func addDataElement(elementName: String?, value: String?) -> Bool {
-        return addDataElement(elementName, value: value, customConfigFileName: nil)
+        return addDataElement(elementName: elementName, value: value, customConfigFileName: nil)
     }
     
     func addDataElement(elementName: String?, value: String?, customConfigFileName: String?) -> Bool {
@@ -96,20 +105,20 @@ class ISOMessage {
     
     func useCustomConfigurationFiles(customConfigurationFileName: String?, customMTIFileName: String?) -> Bool {
         if customConfigurationFileName == nil {
-            println("The customConfigurationFileName cannot be nil.")
+            print("The customConfigurationFileName cannot be nil.")
             return false
         }
         
         if customMTIFileName == nil {
-            println("The customMTIFileName cannot be nil.")
+            print("The customMTIFileName cannot be nil.")
             return false
         }
         
-        let pathToConfigFile = NSBundle.mainBundle().pathForResource(customConfigurationFileName, ofType: "plist")
+        let pathToConfigFile = Bundle.main.path(forResource: customConfigurationFileName, ofType: "plist")
         dataElementsScheme = NSDictionary(contentsOfFile: pathToConfigFile!)!
         dataElements = NSMutableDictionary()
         
-        let pathToMTIConfigFile = NSBundle.mainBundle().pathForResource(customMTIFileName, ofType: "plist")
+        let pathToMTIConfigFile = Bundle.main.path(forResource: customMTIFileName, ofType: "plist")
         validMTIs = NSArray(contentsOfFile: pathToMTIConfigFile!)!
         
         usesCustomConfiguration = true
@@ -119,28 +128,33 @@ class ISOMessage {
     
     func getHexBitmap1() -> String? {
         let hexBitmapString = (bitmap?.bitmapAsHexString())!
-        return hexBitmapString.substringToIndex(advance(hexBitmapString.startIndex, 16))
+        let endIndex = hexBitmapString.index(hexBitmapString.startIndex, offsetBy: 16)
+        return String(hexBitmapString[..<endIndex])
     }
     
     func getBinaryBitmap1() -> String? {
-        let binaryBitmapString = ISOHelper.hexToBinaryAsString(bitmap?.bitmapAsHexString())!
-        return binaryBitmapString.substringToIndex(advance(binaryBitmapString.startIndex, 64))
+        let binaryBitmapString = ISOHelper.hexToBinaryAsString(hexString: bitmap?.bitmapAsHexString())!
+        let endIndex = binaryBitmapString.index(binaryBitmapString.startIndex, offsetBy: 64)
+        return String(binaryBitmapString[..<endIndex])
     }
     
     func getHexBitmap2() -> String? {
         let isBinary = bitmap!.isBinary
-        let length = countElements(bitmap!.rawValue!)
+        
+        let bitmapString = bitmap!.rawValue!
+        
+        let length = bitmapString.count
         
         if isBinary && length != 128 {
-            println("This bitmap does not have a secondary bitmap.")
+            print("This bitmap does not have a secondary bitmap.")
             return nil
         } else if !isBinary && length != 32 {
-            println("This bitmap does not have a secondary bitmap.")
+            print("This bitmap does not have a secondary bitmap.")
             return nil
         } else if isBinary && length == 128 {
-            return ISOHelper.binaryToHexAsString(bitmap!.rawValue!.substringFromIndex(advance(bitmap!.rawValue!.startIndex, 64)))
+            return ISOHelper.binaryToHexAsString(binaryString: String(bitmapString[bitmapString.index(bitmapString.startIndex, offsetBy: 64)...]))
         } else if isBinary && length == 32 {
-            return ISOHelper.binaryToHexAsString(bitmap!.rawValue!.substringFromIndex(advance(bitmap!.rawValue!.startIndex, 16)))
+            return ISOHelper.binaryToHexAsString(binaryString: String(bitmapString[bitmapString.index(bitmapString.startIndex, offsetBy: 16)...]))
         }
         
         return nil
@@ -149,7 +163,7 @@ class ISOMessage {
     // MARK: Private methods
     
     private func isValidMTI(mti: String) -> Bool {
-        return validMTIs.indexOfObject(mti) > -1
+        return validMTIs.index(of: mti) > -1
     }
     
     private func extractDataElementValues(isoMessageDataElementValues: String?, dataElements: [String]?) -> [String]? {
@@ -163,24 +177,24 @@ class ISOMessage {
                 continue
             }
             
-            let length = dataElementsScheme.valueForKeyPath("\(dataElement).Length") as NSString
+            let length = dataElementsScheme.value(forKeyPath: "\(dataElement).Length") as! NSString
             
             // fixed length values
-            if length.rangeOfString(".").location == NSNotFound {
-                var trueLength = (length as String).toInt()
+            if length.range(of: ".").location == NSNotFound {
+                let trueLength = Int(length as String)
                 
                 if dataElementCount == 0 {
                     fromIndex = 0
                     toIndex = trueLength!
                     
                     let valuesAsNSString = isoMessageDataElementValues! as NSString
-                    let value = (valuesAsNSString.substringFromIndex(fromIndex) as NSString).substringToIndex(toIndex)
+                    let value = (valuesAsNSString.substring(from: fromIndex) as NSString).substring(to: toIndex)
                     values.append(value)
                     fromIndex = trueLength!
                 } else {
                     toIndex = trueLength!
                     let valuesAsNSString = isoMessageDataElementValues! as NSString
-                    let value = (valuesAsNSString.substringFromIndex(fromIndex) as NSString).substringToIndex(toIndex)
+                    let value = (valuesAsNSString.substring(from: fromIndex) as NSString).substring(to: toIndex)
                     values.append(value)
                     fromIndex += trueLength!
                 }
@@ -190,31 +204,31 @@ class ISOMessage {
                 var numberOfLengthDigits = 0
                 let valuesAsNSString = isoMessageDataElementValues! as NSString
                 
-                if countElements(length as String) == 2 {
+                if (length as String).count == 2 {
                     numberOfLengthDigits = 1
-                } else if countElements(length as String) == 4 {
+                } else if (length as String).count == 4 {
                     numberOfLengthDigits = 2
-                } else if countElements(length as String) == 6 {
+                } else if (length as String).count == 6 {
                     numberOfLengthDigits = 3
                 }
                 
                 if dataElementCount == 0 {
-                    trueLength = (valuesAsNSString.substringFromIndex(fromIndex) as NSString).substringToIndex(toIndex).toInt()! + numberOfLengthDigits
+                    trueLength = Int((valuesAsNSString.substring(from:fromIndex) as NSString).substring(to: toIndex))! + numberOfLengthDigits
                     fromIndex = 0 + numberOfLengthDigits
                     toIndex = trueLength - numberOfLengthDigits
-                    let value = (valuesAsNSString.substringFromIndex(fromIndex) as NSString).substringToIndex(toIndex)
+                    let value = (valuesAsNSString.substring(from: fromIndex) as NSString).substring(to: toIndex)
                     values.append(value)
                     fromIndex = trueLength;
                 } else {
-                    trueLength = (valuesAsNSString.substringFromIndex(fromIndex) as NSString).substringToIndex(numberOfLengthDigits).toInt()! + numberOfLengthDigits
+                    trueLength = Int((valuesAsNSString.substring(from:fromIndex) as NSString).substring(to:numberOfLengthDigits))! + numberOfLengthDigits
                     toIndex = trueLength
-                    let value = (valuesAsNSString.substringToIndex(fromIndex + numberOfLengthDigits) as NSString).substringToIndex(toIndex - numberOfLengthDigits)
+                    let value = (valuesAsNSString.substring(to: fromIndex + numberOfLengthDigits) as NSString).substring(to: toIndex - numberOfLengthDigits)
                     values.append(value)
                     fromIndex += trueLength
                 }
             }
             
-            dataElementCount++;
+            dataElementCount += 1
         }
         
         return values
